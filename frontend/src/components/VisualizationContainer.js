@@ -74,8 +74,18 @@ const VisualizationContainer = () => {
     }
   }
 
+  // function to unitize a vector
+  const unitizeVector = (v) => {
+    const [x, y, z] = v
+    const magnitude = Math.sqrt(x**2 + y**2 + z**2)
+
+    const unitizedVector = [x / magnitude, y / magnitude, z / magnitude]
+
+    return unitizedVector
+  }
+
   // point rotation calculations in the frontend
-  const handleRotations = (xRot, yRot, zRot, points, zMoving) => {
+  const handleRotations = (xRot, yRot, zRot, points) => {
     const Rx = [
       [1, 0, 0],
       [0, Math.cos(xRot), -Math.sin(xRot)],
@@ -98,28 +108,28 @@ const VisualizationContainer = () => {
     const rotatedPoints = points.map(point => {
       const [x, y, z] = point;
       const vector = [x, y, z];
-      const xRotatedVector = [0, 0, 0];
-      const xyRotatedVector = [0, 0, 0];
-      const xyzRotatedVector = [0, 0, 0];
+      const zRotatedVector = [0, 0, 0];
+      const zyRotatedVector = [0, 0, 0];
+      const zyxRotatedVector = [0, 0, 0];
 
       // Apply the x, y, and z rotations
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
-          xRotatedVector[i] += Rx[i][j] * vector[j];
+          zRotatedVector[i] += Rx[i][j] * vector[j];
         }
       }
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
-          xyRotatedVector[i] += Ry[i][j] * xRotatedVector[j];
+          zyRotatedVector[i] += Ry[i][j] * zRotatedVector[j];
         }
       }
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
-          xyzRotatedVector[i] += Rz[i][j] * xyRotatedVector[j];
+          zyxRotatedVector[i] += Rz[i][j] * zyRotatedVector[j];
         }
       }
 
-      return xyzRotatedVector;
+      return zyxRotatedVector;
     });
 
     return rotatedPoints;
@@ -147,19 +157,24 @@ const VisualizationContainer = () => {
           safeCoordDiff(e.clientX - currentCoords[0], 0.1), // Horizontal movement
           safeCoordDiff(e.clientY - currentCoords[1], 0.1), // Vertical movement
         ];
-  
-        // Horizontal drag: Rotate around Z-axis
-        const rotationZ = 0
-  
-        // Vertical drag: Rotate around X-axis (tilt up/down)
-        const rotationX = Math.min(0.02, Math.max(-0.02, coordDiff[1] * 0.001));
-  
-        // No rotation around Y to maintain Z-axis as vertical
-        const rotationY = 0;
+
+        let rotationZ = 0
+        let rotationX = Math.min(0.02, Math.max(-0.02, coordDiff[1] * 0.001));
+        // let rotationY = Math.min(0.02, Math.max(-0.02, coordDiff[0] * 0.001));
+        let rotationY = 0
+
+        if (JSON.stringify(zAxis) === JSON.stringify([[0, 0, 3.5], [0, 0, -3.5]])) {
+          rotationZ = Math.min(0.02, Math.max(-0.02, coordDiff[0] * 0.001));
+          rotationX = Math.min(0.02, Math.max(-0.02, coordDiff[1] * 0.001));
+          rotationY = 0
+          // Update points and axes
+          setPoints(handleRotations(-rotationX, -rotationY, -rotationZ, points));
+          updateAxes(-rotationX, -rotationY, -rotationZ);
+        }
   
         // Update points and axes
-        setPoints(handleRotations(rotationX, rotationY, rotationZ, points));
-        updateAxes(rotationX, rotationY, rotationZ);
+        setPoints(handleRotations(-rotationX, -rotationY, -rotationZ, points));
+        updateAxes(-rotationX, -rotationY, -rotationZ);
   
         // Update current coordinates
         setCurrentCoords([e.clientX, e.clientY]);
