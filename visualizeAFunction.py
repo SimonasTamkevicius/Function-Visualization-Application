@@ -21,21 +21,32 @@ async def getPoints():
     return JSONResponse(content={"points": points})
 
 
-# defines the function
-def functionCalc (X, Y):
-    return math.sin(X**2 + Y**2)
+def safe_function_calc(func, X, Y):
+    try:
+        # Check if the function is defined for the given inputs
+        result = func(X, Y)
+        return result
+    except (ValueError, ZeroDivisionError, TypeError) as e:
+        # Handle known errors such as math errors (like log of negative number)
+        return None  # Or you can return a default value like float('nan')
+
+# Example of a custom function (can be modified in the future)
+def functionCalc(x, y):
+    # This is just a placeholder for whatever function you want to use
+    return math.e**x  # Logarithm, which works only for X > 0
 
 # gets the points to be displayed
 def getValues():
     points = []
-    step = 0.1
+    step = 0.2
 
-    x = -2.5
-    while x <= 2.5:
-        y = -2.5
-        while y <= 2.5:
-            z = functionCalc(x, y)
-            points.append((x, y, z))
+    x = -3
+    while x <= 3:
+        y = -3
+        while y <= 3:
+            z = safe_function_calc(functionCalc, x, y)
+            if (z is not None):
+                points.append((x, y, z))
             y += step
         x += step
     return points
@@ -100,38 +111,3 @@ async def getRotatedPoints (rotate: Rotation):
     theta = rotate.theta
     rotated_points = [rotation(x, y, z, type, theta) for x, y, z in points]
     return JSONResponse(content={"rotatedPoints": rotated_points})
-
-# # Initialize pygame
-# pygame.init()
-# screen = pygame.display.set_mode((800, 600))
-# screen.fill((0, 0, 0))
-# running = True
-
-# # Map points to screen coordinates
-# def map_to_screen(point):
-#     x, y, z = point
-#     screen_x = int(400 + x * 100)  # Scale and center
-#     screen_y = int(300 - y * 100)  # Invert Y for screen coordinates
-#     return screen_x, screen_y
-
-# # Draw points
-# # This part of the code is iterating over each point in the `points` list, mapping each point's coordinates to screen coordinates
-# # using the `map_to_screen` function, and then drawing a small circle (pixel) on the pygame screen at those screen coordinates. The
-# # circles are drawn in green color with a radius of 2 pixels. This allows you to visualize the points of the function on the pygame
-# # screen.
-# for p in points:
-#     screen_x, screen_y = map_to_screen(p)
-#     pygame.draw.circle(screen, (0, 255, 0), (screen_x, screen_y), 2)
-# # for p in rotated_points:
-# #     screen_x, screen_y = map_to_screen(p)
-# #     pygame.draw.circle(screen, (0, 255, 0), (screen_x, screen_y), 2)
-
-# pygame.display.flip()
-
-# # Wait until window is closed
-# while running:
-#     for event in pygame.event.get():
-#         if event.type == pygame.QUIT:
-#             running = False
-
-# pygame.quit()

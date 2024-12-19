@@ -1,30 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { debounce, throttle } from 'lodash';
 
 const VisualizationContainer = () => {
-  // general variables
+  // General variables
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // function display variables
-  const [scale, setScale] = useState(60);
+  // Function display variables
+  const [scale, setScale] = useState(100);
   const [points, setPoints] = useState([]);
   const [colour, setColour] = useState("#002fa7");
 
-  // axes related variables
+  // Axes related variables
   const [xAxis, setXAxis] = useState([[3.5, 0, 0], [-3.5, 0, 0]]);
   const [yAxis, setYAxis] = useState([[0, 3.5, 0], [0, -3.5, 0]]);
   const [zAxis, setZAxis] = useState([[0, 0, 3.5], [0, 0, -3.5]]);
 
-  // function rotation
+  // XY border lines
+  const [posXBorder, setPosXBorder] = useState([[3.5, 3.5, 0], [3.5, -3.5, 0]]);
+  const [negXBorder, setNegXBorder] = useState([[-3.5, 3.5, 0], [-3.5, -3.5, 0]]);
+  const [posYBorder, setPosYBorder] = useState([[3.5, 3.5, 0], [-3.5, 3.5, 0]]);
+  const [negYBorder, setNegYBorder] = useState([[3.5, -3.5, 0], [-3.5, -3.5, 0]]);
+
+  // Function rotation
   const [dragging, setDragging] = useState(false);
-  const [currentCoords, setCurrentCoords] = useState([0, 0])
+  const [currentCoords, setCurrentCoords] = useState([0, 0]);
 
-  const width = 500;
-  const height = 500;
+  const width = 1000;
+  const height = 1000;
 
-
-  // retrieve the calculated points from the backend
+  // Retrieve the calculated points from the backend
   useEffect(() => {
     axios
       .get('http://localhost:8000/points')
@@ -39,201 +45,109 @@ const VisualizationContainer = () => {
       });
   }, []);
 
-  // soon to be deprecated handles rotations manually with button clicks
-  const handleClick = (e) => {
-    if (points.length > 0) {
-      const typeOfRot = e.target.value
-      if (typeOfRot === "x") {
-        setPoints(handleRotations(.12, 0, 0, points))
-        updateAxes(.12, 0, 0)
-      }
-      else if (typeOfRot === "y") {
-        setPoints(handleRotations(0, .12, 0, points))
-        updateAxes(0, .12, 0)
-      }
-      else {
-        setPoints(handleRotations(0, 0, .12, points))
-        updateAxes(0, 0, .12)
-      }
-    }
-  };
-
-
-  // allows for scroll to zoom in or out
+  // Allows for scroll to zoom in or out
   const handleWheel = (e) => {
     const { deltaY } = e;
-    const newScale = 
-      deltaY > 0 
-        ? scale - (0.075 * Math.abs(deltaY))
-        : scale + (0.075 * Math.abs(deltaY));
+    const newScale =
+      deltaY > 0
+        ? scale - 0.075 * Math.abs(deltaY)
+        : scale + 0.075 * Math.abs(deltaY);
 
-    if (newScale > 1) {
+    if (newScale >= 40 && newScale <= 140) {
       setScale(newScale);
-    } else {
-      setScale(1);
     }
-  }
-
-  // function to unitize a vector
-  const unitizeVector = (v) => {
-    const [x, y, z] = v
-    const magnitude = Math.sqrt(x**2 + y**2 + z**2)
-
-    const unitizedVector = [x / magnitude, y / magnitude, z / magnitude]
-
-    return unitizedVector
-  }
-
-  // point rotation calculations in the frontend
-  const handleRotations = (xRot, yRot, zRot, points) => {
-    const Rx = [
-      [1, 0, 0],
-      [0, Math.cos(xRot), -Math.sin(xRot)],
-      [0, Math.sin(xRot), Math.cos(xRot)]
-    ];
-
-    const Ry = [
-      [Math.cos(yRot), 0, Math.sin(yRot)],
-      [0, 1, 0],
-      [-Math.sin(yRot), 0, Math.cos(yRot)]
-    ];
-
-    const Rz = [
-      [Math.cos(zRot), -Math.sin(zRot), 0],
-      [Math.sin(zRot), Math.cos(zRot), 0],
-      [0, 0, 1]
-    ];
-
-    // Rotate all the points
-    const rotatedPoints = points.map(point => {
-      const [x, y, z] = point;
-      const vector = [x, y, z];
-      const zRotatedVector = [0, 0, 0];
-      const zyRotatedVector = [0, 0, 0];
-      const zyxRotatedVector = [0, 0, 0];
-
-      // Apply the x, y, and z rotations
-      for (let i = 0; i < 3; i++) {
-        for (let j = 0; j < 3; j++) {
-          zRotatedVector[i] += Rx[i][j] * vector[j];
-        }
-      }
-      for (let i = 0; i < 3; i++) {
-        for (let j = 0; j < 3; j++) {
-          zyRotatedVector[i] += Ry[i][j] * zRotatedVector[j];
-        }
-      }
-      for (let i = 0; i < 3; i++) {
-        for (let j = 0; j < 3; j++) {
-          zyxRotatedVector[i] += Rz[i][j] * zyRotatedVector[j];
-        }
-      }
-
-      return zyxRotatedVector;
-    });
-
-    return rotatedPoints;
   };
 
-  // starts coordinate capture on mouse down
-  const handleMouseDown =  (e) => {
-    console.log("Mouse down: ", e.clientX, e.clientY);
-    setDragging(true)
-  }
+  // Function to unitize a vector
+  const unitizeVector = (v) => {
+    const magnitude = Math.sqrt(v.reduce((sum, comp) => sum + comp ** 2, 0));
+    return v.map((comp) => comp / magnitude);
+  };
 
-    // Safeguard to prevent division by zero or small values
-    const safeCoordDiff = (value, minValue) => Math.abs(value) < minValue ? minValue : value;
+  // Create the Rodrigues rotation matrix
+  const createRotationMatrix = (ux, uy, uz, theta) => {
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    const oneMinusCos = 1 - cos;
 
-  let animationFrame;
+    return [
+      [cos + ux ** 2 * oneMinusCos, ux * uy * oneMinusCos - uz * sin, ux * uz * oneMinusCos + uy * sin],
+      [uy * ux * oneMinusCos + uz * sin, cos + uy ** 2 * oneMinusCos, uy * uz * oneMinusCos - ux * sin],
+      [uz * ux * oneMinusCos - uy * sin, uz * uy * oneMinusCos + ux * sin, cos + uz ** 2 * oneMinusCos],
+    ];
+  };
 
-  const handleMouseMove = (e) => {
-    if (dragging) {
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-      }
+  // Point rotation calculations in the frontend
+  const handleRotations = (theta, points, axis) => {
+    const directionVector = axis[1].map((val, i) => val - axis[0][i]);
+    const [ux, uy, uz] = unitizeVector(directionVector);
+    const R = createRotationMatrix(ux, uy, uz, theta);
+
+    return points.map((point) => {
+      return R.map((row) => row.reduce((sum, r, i) => sum + r * point[i], 0)).map((coord) => parseFloat(coord.toFixed(3)));
+    });
+  };
+
+  // Starts coordinate capture on mouse down
+  const handleMouseDown = (e) => {
+    setCurrentCoords([e.clientX, e.clientY]);
+    setDragging(true);
+  };
+
+  // Safeguard to prevent division by zero or small values
+  const safeCoordDiff = (value, minValue) => (Math.abs(value) < minValue ? minValue : value);
+
+  const handleMouseMove = throttle((e) => {
+    if (!dragging) return;
+
+    const newCoords = [e.clientX, e.clientY];
+    const coordDiff = [
+      safeCoordDiff(newCoords[0] - currentCoords[0], 0.005),
+      safeCoordDiff(newCoords[1] - currentCoords[1], 0.005),
+    ];
+
+    setCurrentCoords(newCoords);
+
+    const theAxis = [[1, 0, 0], [-1, 0, 0]];
+    const rotationX = Math.min(0.75, Math.max(-0.75, coordDiff[1] * 0.005));
+    const rotationZ = Math.min(0.75, Math.max(-0.75, coordDiff[0] * 0.005));
+
+    setPoints((prevPoints) => handleRotations(rotationX, handleRotations(rotationZ, prevPoints, zAxis), theAxis));
+    setXAxis((prevXAxis) => handleRotations(rotationX, handleRotations(rotationZ, prevXAxis, zAxis), theAxis));
+    setYAxis((prevYAxis) => handleRotations(rotationX, handleRotations(rotationZ, prevYAxis, zAxis), theAxis));
+    setZAxis((prevZAxis) => handleRotations(rotationX, prevZAxis, theAxis));
+
+    // rotateBorders(rotationX, -rotationZ, theAxis, zAxis);
+  }, 16);
+
+  const rotateBorders = (theta1, theta2, axis1, axis2) => {
+    const posXRotation = handleRotations(theta1, posXBorder, axis1);
+    const negXRotation = handleRotations(theta1, negXBorder, axis1);
+    const posYRotation = handleRotations(theta1, posYBorder, axis1);
+    const negYRotation = handleRotations(theta1, negYBorder, axis1);
   
-      animationFrame = requestAnimationFrame(() => {
-        const coordDiff = [
-          safeCoordDiff(e.clientX - currentCoords[0], 0.1), // Horizontal movement
-          safeCoordDiff(e.clientY - currentCoords[1], 0.1), // Vertical movement
-        ];
-
-        let rotationZ = 0
-        let rotationX = Math.min(0.02, Math.max(-0.02, coordDiff[1] * 0.001));
-        // let rotationY = Math.min(0.02, Math.max(-0.02, coordDiff[0] * 0.001));
-        let rotationY = 0
-
-        if (JSON.stringify(zAxis) === JSON.stringify([[0, 0, 3.5], [0, 0, -3.5]])) {
-          rotationZ = Math.min(0.02, Math.max(-0.02, coordDiff[0] * 0.001));
-          rotationX = Math.min(0.02, Math.max(-0.02, coordDiff[1] * 0.001));
-          rotationY = 0
-          // Update points and axes
-          setPoints(handleRotations(-rotationX, -rotationY, -rotationZ, points));
-          updateAxes(-rotationX, -rotationY, -rotationZ);
-        }
+    // Round the rotated coordinates to 3 significant digits
+    const roundCoords = (coords) => coords.map((coord) => coord.map((c) => parseFloat(c.toFixed(3))));
   
-        // Update points and axes
-        setPoints(handleRotations(-rotationX, -rotationY, -rotationZ, points));
-        updateAxes(-rotationX, -rotationY, -rotationZ);
-  
-        // Update current coordinates
-        setCurrentCoords([e.clientX, e.clientY]);
-      });
-    }
-  };  
+    setPosXBorder(roundCoords(handleRotations(theta2, posXRotation, axis2)));
+    setNegXBorder(roundCoords(handleRotations(theta2, negXRotation, axis2)));
+    setPosYBorder(roundCoords(handleRotations(theta2, posYRotation, axis2)));
+    setNegYBorder(roundCoords(handleRotations(theta2, negYRotation, axis2)));
+  };
 
-  const handleMouseUp = (e) => {
-    console.log("Mouse up: ", e.clientX, e.clientY);
-    setDragging(false)
-  } 
+  const handleMouseUp = () => {
+    setDragging(false);
+  };
 
   const safeRadius = (z, scale, cameraPos) => {
-    const denominator = 1 + z * scale / cameraPos;
-  
-    if (denominator <= 0.2) {
-      return 0;
-    }
-  
-    return 1.5 * (1 / denominator);
+    const denominator = 1 + (z * scale) / cameraPos;
+    return denominator <= 0.2 ? 0 : parseFloat((1.5 / denominator).toFixed(3));
   };
-
-  // soon to be removed axis rotation
-  // const updateAxesOld = (typeOfRot) => {
-  //   axios.post('http://localhost:8000/rotate_points', {
-  //     type: typeOfRot,
-  //     newPoints: xAxis,
-  //     theta: .2,
-  //   }).then((response) => {
-  //     setXAxis(response.data.rotatedPoints);
-  //   });
-
-  //   axios.post('http://localhost:8000/rotate_points', {
-  //     type: typeOfRot,
-  //     newPoints: yAxis,
-  //     theta: .2,
-  //   }).then((response) => {
-  //     setYAxis(response.data.rotatedPoints);
-  //   });
-    
-  //   axios.post('http://localhost:8000/rotate_points', {
-  //     type: typeOfRot,
-  //     newPoints: zAxis,
-  //     theta: .2,
-  //   }).then((response) => {
-  //     setZAxis(response.data.rotatedPoints);
-  //   });
-  // };
-
-  const updateAxes = (xRot, yRot, zRot) => {
-    setXAxis(handleRotations(xRot, yRot, zRot, xAxis))
-    setYAxis(handleRotations(xRot, yRot, zRot, yAxis))
-    setZAxis(handleRotations(xRot, yRot, zRot, zAxis))
-  }
 
   const projectPoint = ([x, y, z], cameraPos = 1000) => {
     return [
-      (x * scale * cameraPos) / (z * scale + cameraPos) + width / 2,
-      (-y * scale * cameraPos) / (z * scale + cameraPos) + height / 2,
+      parseFloat(((x * scale * cameraPos) / (z * scale + cameraPos) + width / 2).toFixed(3)),
+      parseFloat(((-y * scale * cameraPos) / (z * scale + cameraPos) + height / 2).toFixed(3)),
     ];
   };
 
@@ -289,17 +203,11 @@ const VisualizationContainer = () => {
                   stroke={colours[index]}
                   strokeWidth={3}
                 />
-                <text x={x1 - 5} y={y1 - 2} fontSize={scale / 2.5} fontWeight="bold" style={{ userSelect: "none" }}>{axes[index]}</text>
+                <text x={x1 - 5} y={y1 - 2} fontSize={scale / 2.5} fill="#333333" fontWeight="bold" style={{ userSelect: "none" }}>{axes[index]}</text>
               </g>
             )
           })}
         </svg>
-      </div>
-      <button value="x" onClick={handleClick} >Rotate X</button>
-      <button value="y" onClick={handleClick}>Rotate Y</button>
-      <button value="z" onClick={handleClick}>Rotate Z</button>
-      <div id='testing'>
-        <h1>TESTING</h1>
       </div>
     </div>
   );
